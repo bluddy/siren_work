@@ -27,7 +27,6 @@ def laplace(y, x):
     grad = gradient(y, x)
     return divergence(grad, x)
 
-
 def divergence(y, x):
     div = 0.
     for i in range(y.shape[-1]):
@@ -76,7 +75,7 @@ def run():
     cameraman = ImageFitting(256)
     dataloader = DataLoader(cameraman, batch_size=1, pin_memory=True, num_workers=0)
 
-    img_siren = Siren(in_features=2, out_features=1, hidden_features=64,
+    img_siren = Siren(in_features=2, out_features=1, hidden_features=128,
                     hidden_layers=3, outermost_linear=True)
     img_siren.cuda()
 
@@ -94,8 +93,7 @@ def run():
 
         gpu_info()
 
-        if not step % steps_til_summary:
-            print("Step %d, Total loss %0.6f" % (step, loss))
+        def show_imgs():
             img_grad = gradient(model_output, coords)
             img_laplacian = laplace(model_output, coords)
 
@@ -105,16 +103,16 @@ def run():
             axes[2].imshow(img_laplacian.cpu().view(256,256).detach().numpy())
             plt.show()
 
+        if not step % steps_til_summary:
+            print("Step %d, Total loss %0.6f" % (step, loss))
+        
+        if step == total_steps - 10:
+            show_imgs()
+
         optim.zero_grad()
         loss.backward()
         optim.step()
 
-        img_grad = gradient(model_output, coords)
-        img_laplacian = laplace(model_output, coords)
 
-        fig, axes = plt.subplots(1,3, figsize=(18,6))
-        axes[0].imshow(model_output.cpu().view(256,256).detach().numpy())
-        axes[1].imshow(img_grad.norm(dim=-1).cpu().view(256,256).detach().numpy())
-        axes[2].imshow(img_laplacian.cpu().view(256,256).detach().numpy())
-        plt.show()
-run()
+if __name__ == '__main__':
+    run()
