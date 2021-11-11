@@ -20,7 +20,7 @@ def get_mgrid(sidelengths):
     dim: int'''
     tensors =  [torch.linspace(-1, 1, steps=s) for s in sidelengths]
     mgrid = torch.stack(torch.meshgrid(*tensors), dim=-1)
-    #mgrid = mgrid.reshape(-1, len(sidelengths))
+    mgrid = mgrid.reshape(100, -1, len(sidelengths))
     return mgrid
 
 def get_rgrid(sidelengths):
@@ -61,23 +61,22 @@ class ImageFitting(Dataset):
         imgs = []
         for (root,_,files) in os.walk('data/48/'):
             for name in files:
-                with Image.open(os.path.join(root, name)) as img:
+                with Image.open(os.path.join(root, name)).convert('RGB') as img:
                     img = transform(img)
-                    img = img.permute(1,2,0)
+                    img = img.permute(1,2,0).view(-1,3)
                     imgs.append(img)
         self.imgs = imgs
         # Idxs to pull out the correct image pixel
-        self.idxs = get_rgrid([len(imgs), sidelength, sidelength])
+        #self.idxs = get_rgrid([len(imgs), sidelength, sidelength])
         # Coordinates to pass to NN
         self.coords = get_mgrid([len(imgs), sidelength, sidelength])
-        self.length = len(imgs) * sidelength**2
+        self.length = len(imgs)
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, idx):
-        idx = tuple(self.idxs[idx])
-        return self.coords[idx], self.imgs[idx[0]][idx[1:]]
+        return self.coords[idx], self.imgs[idx]
 
 def gpu_info():
     t = torch.cuda.get_device_properties(0).total_memory
@@ -89,19 +88,20 @@ def gpu_info():
 def run():
     sidelength = 48
     dataset = ImageFitting(sidelength)
-    dataloader = DataLoader(dataset, batch_size=48*48, pin_memory=True, num_workers=0)
+    dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
 
     img_siren = Siren(in_features=3, out_features=1, hidden_features=200,
                     hidden_layers=3, outermost_linear=True)
     img_siren.cuda()
 
     epochs = 500 # Since the whole image is our dataset, this just means 500 gradient descent steps.
-    epochs_til_summary = 100
+    epochs_til_summary = 10
 
     optim = torch.optim.Adam(lr=1e-4, params=img_siren.parameters())
 
     for epoch in range(epochs):
-        for step, (model_input, ground_truth) in enumerate(dataloader):
+        # Iterate over images
+        for imgnum, (model_input, ground_truth) in enumerate(dataloader):
             model_input, ground_truth = model_input.cuda(), ground_truth.cuda()
             model_output, coords = img_siren(model_input)
             loss = ((model_output - ground_truth)**2).mean()
@@ -118,9 +118,12 @@ def run():
                 axes[2].imshow(img_laplacian.cpu().view(sidelength,sidelength).detach().numpy())
                 plt.show()
 
-            print(f"Epoch {epoch} Step {step}, Total loss {loss:0.6f}")
+            print(f"Epoch {epoch} imgnum {imgnum}, Total loss {loss:0.6f}")
 
-            if not step and epoch == epochs - epochs_til_summary:
+            if not (epoch % epochs_til_summary) and imgnum == 0:
+                show_imgs()
+
+            if not imgnum and epoch == epochs - epochs_til_summary:
                 show_imgs()
 
             optim.zero_grad()
