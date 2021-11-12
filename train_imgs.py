@@ -65,7 +65,9 @@ class ImageFitting(Dataset):
                     img = transform(img)
                     img = img.permute(1,2,0).view(-1,3)
                     imgs.append(img)
+
         self.imgs = imgs
+
         # Idxs to pull out the correct image pixel
         #self.idxs = get_rgrid([len(imgs), sidelength, sidelength])
         # Coordinates to pass to NN
@@ -85,7 +87,7 @@ def gpu_info():
     f = r-a  # free inside reserved
     print(f'Total:{t} Reserved:{r} Allocated:{a}')
 
-def run():
+def run(args):
     sidelength = 48
     dataset = ImageFitting(sidelength)
     dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
@@ -99,9 +101,14 @@ def run():
 
     optim = torch.optim.Adam(lr=1e-4, params=img_siren.parameters())
 
+    limit = set((i for i in range(args.imgs)))
+
     for epoch in range(epochs):
         # Iterate over images
         for imgnum, (model_input, ground_truth) in enumerate(dataloader):
+            if imgnum not in limit:
+                continue
+
             model_input, ground_truth = model_input.cuda(), ground_truth.cuda()
             model_output, coords = img_siren(model_input)
             loss = ((model_output - ground_truth)**2).mean()
@@ -132,4 +139,8 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    import argparse
+    parser = argparse.ArgumentParser(description='Run Sine activation networks')
+    parser.add_argument('--imgs', help='How many images to learn', type=int, default=100)
+    args = parser.parse_args()
+    run(args)
