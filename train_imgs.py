@@ -14,15 +14,16 @@ import time
 
 from sine import Siren
 
-def get_mgrid(sidelengths):
+def get_mgrid(sidelengths, first_dim=100):
     '''Generates a flattened grid of (x,y,...) coordinates in a range of -1 to 1.
     sidelen: int
     dim: int'''
     tensors =  [torch.linspace(-1, 1, steps=s) for s in sidelengths]
     mgrid = torch.stack(torch.meshgrid(*tensors), dim=-1)
-    mgrid = mgrid.reshape(100, -1, len(sidelengths))
+    mgrid = mgrid.reshape(first_dim, -1, len(sidelengths))
     return mgrid
 
+# Used for generating indexes. Currently unused
 def get_rgrid(sidelengths):
     '''Generates a flattened grid of (x,y,...) coordinates in a range of -1 to 1.
     sidelen: int
@@ -49,7 +50,7 @@ def gradient(y, x, grad_outputs=None):
     return grad
 
 class ImageFitting(Dataset):
-    def __init__(self, sidelength):
+    def __init__(self, sidelength, num_imgs=100):
         super().__init__()
 
         transform = Compose([
@@ -67,18 +68,24 @@ class ImageFitting(Dataset):
                     imgs.append(img)
 
         self.imgs = imgs
+        if num_imgs > len(imgs):
+            num_imgs = len(imgs)
+        self.length = num_imgs
 
         # Idxs to pull out the correct image pixel
         #self.idxs = get_rgrid([len(imgs), sidelength, sidelength])
         # Coordinates to pass to NN
-        self.coords = get_mgrid([len(imgs), sidelength, sidelength])
-        self.length = len(imgs)
+        self.coords = get_mgrid([self.length, sidelength, sidelength])
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, idx):
         return self.coords[idx], self.imgs[idx]
+
+    def input_grid(self, sidelength):
+        return get_mgrid([self.length, sidelength, sidelength])
+
 
 def gpu_info():
     t = torch.cuda.get_device_properties(0).total_memory
@@ -108,6 +115,9 @@ def run(args):
 
     limit = set((i for i in range(args.num_images)))
 
+    test_length = args.upsample if args.upsample else sidelength
+    test_input = dataset.input_grid(test_length).cuda()
+
     for epoch in range(1, args.epochs + 1):
         all_img_loss = 0.
         for imgnum, (model_input, ground_truth) in enumerate(dataloader):
@@ -125,11 +135,12 @@ def run(args):
                 if not args.save_image and not args.show_image:
                     return
 
-                plt.imshow(model_output.cpu().view(sidelength,sidelength,3).detach().numpy())
+                test_output = img_siren(test_input[imgnum])[0] # get test image
+                plt.imshow(test_output.cpu().view(test_length,test_length,3).detach().numpy())
                 if args.show_image:
                     plt.show()
                 if args.save_image:
-                    path = os.path.join(out_path, f'{sidelength}_e{epoch}_{imgnum}.png')
+                    path = os.path.join(out_path, f'{sidelength}_e{epoch:04d}_{imgnum:03d}.png')
                     plt.savefig(path)
 
             if not (epoch % epochs_til_summary):
@@ -139,6 +150,7 @@ def run(args):
             loss.backward()
             optim.step()
 
+        all_img_loss /= args.num_images
         print(f"Epoch {epoch} L2 loss over all images {all_img_loss:0.6f}")
 
 
