@@ -90,12 +90,12 @@ def run():
     dataset = ImageFitting(sidelength)
     dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
 
-    img_siren = Siren(in_features=3, out_features=1, hidden_features=200,
+    img_siren = Siren(in_features=3, out_features=3, hidden_features=200,
                     hidden_layers=3, outermost_linear=True)
     img_siren.cuda()
 
     epochs = 500 # Since the whole image is our dataset, this just means 500 gradient descent steps.
-    epochs_til_summary = 10
+    epochs_til_summary = 100
 
     optim = torch.optim.Adam(lr=1e-4, params=img_siren.parameters())
 
@@ -113,7 +113,7 @@ def run():
                 img_laplacian = laplace(model_output, coords)
 
                 fig, axes = plt.subplots(1,3, figsize=(18,6))
-                axes[0].imshow(model_output.cpu().view(sidelength,sidelength).detach().numpy())
+                axes[0].imshow(model_output.cpu().view(sidelength,sidelength,3).detach().numpy())
                 axes[1].imshow(img_grad.norm(dim=-1).cpu().view(sidelength,sidelength).detach().numpy())
                 axes[2].imshow(img_laplacian.cpu().view(sidelength,sidelength).detach().numpy())
                 plt.show()
