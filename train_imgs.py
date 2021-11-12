@@ -88,6 +88,11 @@ def gpu_info():
     print(f'Total:{t} Reserved:{r} Allocated:{a}')
 
 def run(args):
+
+    out_path = './imgs/'
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
     sidelength = 48
     dataset = ImageFitting(sidelength)
     dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
@@ -96,15 +101,15 @@ def run(args):
                     hidden_layers=3, outermost_linear=True)
     img_siren.cuda()
 
-    epochs = 500 # Since the whole image is our dataset, this just means 500 gradient descent steps.
+    epochs = 500
     epochs_til_summary = 100
 
     optim = torch.optim.Adam(lr=1e-4, params=img_siren.parameters())
 
-    limit = set((i for i in range(args.imgs)))
+    limit = set((i for i in range(args.num_images)))
 
-    for epoch in range(epochs):
-        # Iterate over images
+    for epoch in range(1, args.epochs + 1):
+        all_img_loss = 0.
         for imgnum, (model_input, ground_truth) in enumerate(dataloader):
             if imgnum not in limit:
                 continue
@@ -112,35 +117,39 @@ def run(args):
             model_input, ground_truth = model_input.cuda(), ground_truth.cuda()
             model_output, coords = img_siren(model_input)
             loss = ((model_output - ground_truth)**2).mean()
+            all_img_loss += loss
 
             #gpu_info()
 
-            def show_imgs():
-                img_grad = gradient(model_output, coords)
-                img_laplacian = laplace(model_output, coords)
+            def show_image():
+                if not args.save_image and not args.show_image:
+                    return
 
-                fig, axes = plt.subplots(1,3, figsize=(18,6))
-                axes[0].imshow(model_output.cpu().view(sidelength,sidelength,3).detach().numpy())
-                axes[1].imshow(img_grad.norm(dim=-1).cpu().view(sidelength,sidelength).detach().numpy())
-                axes[2].imshow(img_laplacian.cpu().view(sidelength,sidelength).detach().numpy())
-                plt.show()
+                plt.imshow(model_output.cpu().view(sidelength,sidelength,3).detach().numpy())
+                if args.show_image:
+                    plt.show()
+                if args.save_image:
+                    path = os.path.join(out_path, f'{sidelength}_e{epoch}_{imgnum}.png')
+                    plt.savefig(path)
 
-            print(f"Epoch {epoch} imgnum {imgnum}, Total loss {loss:0.6f}")
-
-            if not (epoch % epochs_til_summary) and imgnum == 0:
-                show_imgs()
-
-            if not imgnum and epoch == epochs - epochs_til_summary:
-                show_imgs()
+            if not (epoch % epochs_til_summary):
+                show_image()
 
             optim.zero_grad()
             loss.backward()
             optim.step()
 
+        print(f"Epoch {epoch} L2 loss over all images {all_img_loss:0.6f}")
+
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Run Sine activation networks')
-    parser.add_argument('--imgs', help='How many images to learn', type=int, default=100)
+    parser.add_argument('--num-images', help='How many images to learn', type=int, default=100)
+    parser.add_argument('--show-image', help='Show imgs on-screen', default=False, action='store_true')
+    parser.add_argument('--save-image', help='Save imgs to disk', default=False, action='store_true')
+    parser.add_argument('--epochs', help='How long to go for', type=int, default=500)
+    parser.add_argument('--upsample', help='Upsample to a higher dimension', type=int, default=None)
+
     args = parser.parse_args()
     run(args)
