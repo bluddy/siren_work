@@ -144,6 +144,7 @@ def run(args):
                 if args.save_image:
                     path = os.path.join(out_path, f'e{epoch:04d}_{imgnum:03d}.png')
                     plt.savefig(path)
+                plt.close()
 
             if not (epoch % epochs_til_summary):
                 show_image()
