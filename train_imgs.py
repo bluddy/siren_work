@@ -50,8 +50,10 @@ def gradient(y, x, grad_outputs=None):
     return grad
 
 class ImageFitting(Dataset):
-    def __init__(self, sidelength, num_images=100, debug=False):
+    def __init__(self, sidelength, img_list=[], debug=False):
         super().__init__()
+
+        img_set = set(img_list)
 
         transform = Compose([
             Resize(sidelength),
@@ -62,6 +64,9 @@ class ImageFitting(Dataset):
         imgs = []
         for (root,_,files) in os.walk('data/48/'):
             for i, name in enumerate(files):
+                if i not in img_set:
+                    continue
+
                 filepath = os.path.join(root, name)
                 with Image.open(filepath).convert('RGB') as img:
                     if debug:
@@ -71,9 +76,7 @@ class ImageFitting(Dataset):
                     imgs.append(img)
 
         self.imgs = imgs
-        if num_images > len(imgs):
-            num_images = len(imgs)
-        self.length = num_images
+        self.length = len(imgs)
 
         # Idxs to pull out the correct image pixel
         #self.idxs = get_rgrid([len(imgs), sidelength, sidelength])
@@ -107,11 +110,12 @@ def run(args):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    dataset = ImageFitting(sidelength, num_images=args.num_images, debug=args.create_list)
-    dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
+    img_list = args.img_list
+    if img_list == []:
+        img_list = range(args.num_images)
 
-    if args.create_list:
-        return
+    dataset = ImageFitting(sidelength, img_list=img_list, debug=args.create_list)
+    dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
 
     img_siren = Siren(in_features=3, out_features=3, hidden_features=200,
                     hidden_layers=3, outermost_linear=True)
@@ -168,12 +172,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run Sine activation networks')
     parser.add_argument('--num-images', help='How many images to learn', type=int, default=100)
     parser.add_argument('--show-image', help='Show imgs on-screen', default=False, action='store_true')
-    parser.add_argument('--save-image', help='Save imgs to disk', default=False, action='store_true')
-    parser.add_argument('--epochs', help='How long to go for', type=int, default=500)
+    parser.add_argument('--no-save-image', dest='save_image', help='Save imgs to disk', default=True, action='store_false')
+    parser.add_argument('--epochs', help='How long to go for', type=int, default=1000)
     parser.add_argument('--upsample', help='Upsample to a higher dimension', type=int, default=None)
     parser.add_argument('--create-list', help='Map number to file name', default=False, action='store_true')
-    parser.add_argument('--interpolate', help='Choose 2 images for interpolation', nargs=2, type=int)
+    parser.add_argument('--img-list', help='Choose 2 images for interpolation', nargs=2, default=[])
 
     args = parser.parse_args()
+
+    args.img_list = [int(x) for x in args.img_list]
+
     run(args)
 
