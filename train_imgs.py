@@ -103,18 +103,26 @@ def gpu_info():
 def run(args):
     sidelength = 48
 
-    dir_name = f'{sidelength}_n{args.num_images}'
+    if args.img_list == []:
+        args.img_list = range(args.num_images)
+    else:
+        args.num_images = len(args.img_list)
+
+    dir_name = f'{sidelength}'
+
+    if args.img_list == []:
+        dir_name += f'_n{args.num_images}'
+    else:
+        dir_name += f'_l{args.img_list[0]}-{args.img_list[1]}'
+
     if args.upsample:
         dir_name += f'_up{args.upsample}'
+
     out_path = os.path.join('.', 'imgs', dir_name)
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    img_list = args.img_list
-    if img_list == []:
-        img_list = range(args.num_images)
-
-    dataset = ImageFitting(sidelength, img_list=img_list, debug=args.create_list)
+    dataset = ImageFitting(sidelength, img_list=args.img_list, debug=args.create_list)
     dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
 
     img_siren = Siren(in_features=3, out_features=3, hidden_features=200,
