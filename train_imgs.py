@@ -14,13 +14,13 @@ import time
 
 from sine import Siren
 
-def get_mgrid(sidelengths, first_dim=100):
+def get_mgrid(sidelengths):
     '''Generates a flattened grid of (x,y,...) coordinates in a range of -1 to 1.
     sidelen: int
     dim: int'''
     tensors =  [torch.linspace(-1, 1, steps=s) for s in sidelengths]
     mgrid = torch.stack(torch.meshgrid(*tensors), dim=-1)
-    mgrid = mgrid.reshape(first_dim, -1, len(sidelengths))
+    mgrid = mgrid.reshape(sidelengths[0], -1, len(sidelengths))
     return mgrid
 
 # Used for generating indexes. Currently unused
@@ -50,7 +50,7 @@ def gradient(y, x, grad_outputs=None):
     return grad
 
 class ImageFitting(Dataset):
-    def __init__(self, sidelength, num_imgs=100, debug=False):
+    def __init__(self, sidelength, num_images=100, debug=False):
         super().__init__()
 
         transform = Compose([
@@ -71,9 +71,9 @@ class ImageFitting(Dataset):
                     imgs.append(img)
 
         self.imgs = imgs
-        if num_imgs > len(imgs):
-            num_imgs = len(imgs)
-        self.length = num_imgs
+        if num_images > len(imgs):
+            num_images = len(imgs)
+        self.length = num_images
 
         # Idxs to pull out the correct image pixel
         #self.idxs = get_rgrid([len(imgs), sidelength, sidelength])
@@ -107,7 +107,7 @@ def run(args):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    dataset = ImageFitting(sidelength, debug=args.create_list)
+    dataset = ImageFitting(sidelength, num_images=args.num_images, debug=args.create_list)
     dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
 
     if args.create_list:
