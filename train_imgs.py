@@ -50,7 +50,7 @@ def gradient(y, x, grad_outputs=None):
     return grad
 
 class ImageFitting(Dataset):
-    def __init__(self, sidelength, num_imgs=100):
+    def __init__(self, sidelength, num_imgs=100, debug=False):
         super().__init__()
 
         transform = Compose([
@@ -61,8 +61,11 @@ class ImageFitting(Dataset):
 
         imgs = []
         for (root,_,files) in os.walk('data/48/'):
-            for name in files:
-                with Image.open(os.path.join(root, name)).convert('RGB') as img:
+            for i, name in enumerate(files):
+                filepath = os.path.join(root, name)
+                with Image.open(filepath).convert('RGB') as img:
+                    if debug:
+                        print(f'{i}: {filepath}')
                     img = transform(img)
                     img = img.permute(1,2,0).view(-1,3)
                     imgs.append(img)
@@ -104,8 +107,11 @@ def run(args):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    dataset = ImageFitting(sidelength)
+    dataset = ImageFitting(sidelength, debug=args.create_list)
     dataloader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
+
+    if args.create_list:
+        return
 
     img_siren = Siren(in_features=3, out_features=3, hidden_features=200,
                     hidden_layers=3, outermost_linear=True)
@@ -165,6 +171,9 @@ if __name__ == '__main__':
     parser.add_argument('--save-image', help='Save imgs to disk', default=False, action='store_true')
     parser.add_argument('--epochs', help='How long to go for', type=int, default=500)
     parser.add_argument('--upsample', help='Upsample to a higher dimension', type=int, default=None)
+    parser.add_argument('--create-list', help='Map number to file name', default=False, action='store_true')
+    parser.add_argument('--interpolate', help='Choose 2 images for interpolation', nargs=2, type=int)
 
     args = parser.parse_args()
     run(args)
+
