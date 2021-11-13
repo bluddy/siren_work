@@ -109,17 +109,13 @@ def gpu_info():
 
 def run(args):
     sidelength = 48
-
-    if args.img_list == []:
-        args.img_list = range(args.num_images)
-    else:
-        args.num_images = len(args.img_list)
-
     dir_name = f'{sidelength}'
 
     if args.img_list == []:
+        args.img_list = range(args.num_images)
         dir_name += f'_n{args.num_images}'
     else:
+        args.num_images = len(args.img_list)
         dir_name += f'_l{args.img_list[0]}-{args.img_list[1]}'
 
     if args.upsample:
