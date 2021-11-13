@@ -89,8 +89,15 @@ class ImageFitting(Dataset):
     def __getitem__(self, idx):
         return self.coords[idx], self.imgs[idx]
 
-    def input_grid(self, sidelength):
-        return get_mgrid([self.length, sidelength, sidelength])
+    def input_grid(self, width, num_mult=1):
+        '''
+        Create an input grid for testing
+
+        Args:
+            num_mult: how much to muliply the number of images by
+        '''
+
+        return get_mgrid([self.length * num_mult, width, width])
 
 
 def gpu_info():
@@ -118,6 +125,9 @@ def run(args):
     if args.upsample:
         dir_name += f'_up{args.upsample}'
 
+    if args.interpolate:
+        dir_name += '_i'
+
     out_path = os.path.join('.', 'imgs', dir_name)
     if not os.path.exists(out_path):
         os.makedirs(out_path)
@@ -135,7 +145,8 @@ def run(args):
     optim = torch.optim.Adam(lr=1e-4, params=img_siren.parameters())
 
     test_length = args.upsample if args.upsample else sidelength
-    test_input = dataset.input_grid(test_length).cuda()
+    num_mult = 5 if args.interpolate else 1
+    test_input = dataset.input_grid(test_length, num_mult=num_mult).cuda()
 
     for epoch in range(1, args.epochs + 1):
         all_img_loss = 0.
@@ -148,24 +159,28 @@ def run(args):
 
             #gpu_info()
 
-            def show_image():
+            def show_image(idx):
                 if not args.save_image and not args.show_image:
                     return
 
                 with torch.no_grad():
-                    test_output = img_siren(test_input[imgnum])[0] # get test image
+                    test_output = img_siren(test_input[idx])[0] # get test image
                 output = test_output.cpu().view(test_length, test_length,3).numpy()
                 np.clip(output, 0., 1., output)
                 plt.imshow(output)
                 if args.show_image:
                     plt.show()
                 if args.save_image:
-                    path = os.path.join(out_path, f'e{epoch:04d}_{imgnum:03d}.png')
+                    path = os.path.join(out_path, f'e{epoch:04d}_{idx:03d}.png')
                     plt.savefig(path)
                 plt.close()
 
             if not (epoch % epochs_til_summary):
-                show_image()
+                if not args.interpolate:
+                    show_image(imgnum)
+                else:
+                    for i in range(num_mult):
+                        show_image(imgnum * num_mult + i)
 
             optim.zero_grad()
             loss.backward()
@@ -185,6 +200,7 @@ if __name__ == '__main__':
     parser.add_argument('--upsample', help='Upsample to a higher dimension', type=int, default=None)
     parser.add_argument('--create-list', help='Map number to file name', default=False, action='store_true')
     parser.add_argument('--img-list', help='Choose 2 images for interpolation', nargs=2, default=[])
+    parser.add_argument('--interpolate', help='Interpolate between images', default=False, action='store_true')
 
     args = parser.parse_args()
 
