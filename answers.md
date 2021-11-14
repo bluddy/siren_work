@@ -3,17 +3,18 @@
   we desire to view.
   Generalization in this task means the ability to store more than one image successfully. It's
   limited by the capacity of the network, as well as the difference required by adjacent images in the
-  gamma space: the more differences between adjacent images, the more difficult it is for the network to
-  to store the images.
+  gamma space: the more differences between adjacent images at a given x-y location,
+  the more difficult it should be for the network to store the images.
   A full expression of the concept of generalization therefore has two components:
   a. One component is based on hyperparameters such as the number of images and the difference between adjacent
-  images in the gamma space. We could try to express this component as the sum of L2 deltas between adjacent
-  imaged in the gamma space. This component is constant per number of images and layout in gamma space.
+  images in the gamma space. We could try to express this component as the sum of RMS errors between adjacent
+  images in the gamma space. This component is constant per number of images and layout in gamma space.
   b. The second component is network-specific, and concerns the capability of the network itself given a task.
   We can get a sense of the performance of a network by taking the average L2 loss over all images the network
   is trying to memorize. Subtracting this loss from the generalization constant gives us an idea of network
   generalization.
-  To run the program, use `python3 train_ims.py`.
+  To run the program, use `python3 train_ims.py`. We print only average total loss, as the task-based component
+  is constant.
 
 3. a. Upsampling the images works by supplying the --upsample N argument, where N=the desired width.
       An example can be viewed in `imgs/48_n1_up256/`. To focus on one image, one can use the `--num_images`
@@ -37,10 +38,16 @@
         we get noise rather than getting a mix between the images.
         The reason is probably that even though semantically we think the images should mix in a way that
         makes sense from an image-based perspective (having one image fade out and the other fade in),
-        the sine activation function-based neurons don't need to mix in that way.
-        Instead, they can rearrange themselves in whatever way they wish before reaching the next image.
+        the sine activation function-based neurons don't necessarily mix in that way.
+        Instead, they can rearrange themselves in unintuitive ways before reaching their final state.
+        I thought this may have to do with the sine-based gradient allowing movement in multiple directions,
+        and therefore created `test_simultaneous.py` which modifies the algorithm to train the 3d-space
+        at once. I saw no improvement from this approach though.
+        The big mystery from my perspective is why interpolating in the x-y plane works, while interpolating
+        in the gamma plane does not. I *think* some of this has to do with the smoothness between adjacent
+        pixels and the regular pattern of the pixels. 
 
-4. a. An improved algorithm would force the network to retain a similarity to the images even when
+5. a. An improved algorithm would force the network to retain a similarity to the images even when
       it's between two images in the gamma space.
    b-c. We would train the images with the same L2 loss, but we would also add a second term
       when training between images. This L2 term would consist of a mix of d(out, image1) and d(out, image2).
